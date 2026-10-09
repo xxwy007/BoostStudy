@@ -1,0 +1,9 @@
+/build/
+/build-check/
+/.cache/
+/.vs/
+/.vscode/
+/out/
+*.user
+*.suo
+

@@ -1,0 +1,12 @@
+{
+  "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
+  "name": "beast-task-server",
+  "version-string": "0.1.0",
+  "builtin-baseline": "f77ee3769e4a00a015d7ca1eff6b186f08822634",
+  "dependencies": [
+    "boost-beast",
+    "boost-json",
+    "boost-program-options"
+  ]
+}
+
