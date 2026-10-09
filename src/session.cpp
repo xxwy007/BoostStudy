@@ -27,6 +27,7 @@ HttpSession::~HttpSession() {
 }
 
 void HttpSession::run() {
+    // 将首次读取调度到这个连接所属的 executor/strand。
     net::dispatch(stream_.get_executor(),
                   beast::bind_front_handler(&HttpSession::read_request,
                                             shared_from_this()));
@@ -34,6 +35,7 @@ void HttpSession::run() {
 
 void HttpSession::read_request() {
     parser_.emplace();
+    // 必须在 async_read 前限制请求体，防止客户端发送超大消息。
     parser_->body_limit(body_limit_);
     stream_.expires_after(std::chrono::seconds(30));
     http::async_read(stream_, buffer_, *parser_,
@@ -42,6 +44,7 @@ void HttpSession::read_request() {
 }
 
 void HttpSession::on_read(beast::error_code error, std::size_t) {
+    // end_of_stream 表示客户端正常结束了 HTTP 连接。
     if (error == http::error::end_of_stream) {
         close();
         return;
@@ -56,6 +59,7 @@ void HttpSession::on_read(beast::error_code error, std::size_t) {
 }
 
 void HttpSession::write_response(HttpResponse response) {
+    // async_write 完成前响应对象必须存活，因此由完成回调共同持有。
     auto shared_response = std::make_shared<HttpResponse>(std::move(response));
     const bool close_after_write = shared_response->need_eof();
     stream_.expires_after(std::chrono::seconds(30));
@@ -79,6 +83,7 @@ void HttpSession::on_write(bool close_after_write,
         close();
         return;
     }
+    // Keep-Alive 响应发送完成后，继续读取同一连接上的下一次请求。
     read_request();
 }
 

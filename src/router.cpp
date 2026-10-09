@@ -19,6 +19,7 @@ HttpResponse json_response(const HttpRequest& request,
     HttpResponse response{status, request.version()};
     response.set(http::field::server, "beast-task-server");
     response.set(http::field::content_type, "application/json; charset=utf-8");
+    // 保留请求的 Keep-Alive 语义，由 Session 决定继续读取还是关闭连接。
     response.keep_alive(request.keep_alive());
     response.body() = json::serialize(body);
     response.prepare_payload();
@@ -37,6 +38,7 @@ HttpResponse error_response(const HttpRequest& request,
 
 std::string_view path_only(boost::beast::string_view target) {
     const std::string_view value{target.data(), target.size()};
+    // 路由只匹配路径，查询字符串由具体接口按需解析。
     const auto query = value.find('?');
     return value.substr(0, query);
 }
@@ -51,6 +53,7 @@ std::optional<std::uint64_t> task_id_from_path(std::string_view path) {
         return std::nullopt;
     }
     std::uint64_t id{};
+    // from_chars 不抛异常；检查 end 可拒绝 /tasks/1abc 之类的路径。
     const auto [end, error] = std::from_chars(text.data(), text.data() + text.size(), id);
     if (error != std::errc{} || end != text.data() + text.size() || id == 0) {
         return std::nullopt;
@@ -81,6 +84,7 @@ Router::Router(std::shared_ptr<TaskRepository> repository,
     : repository_(std::move(repository)), stats_(std::move(stats)) {}
 
 HttpResponse Router::handle(const HttpRequest& request) const {
+    // 该计数只用于展示，不承担线程间同步职责。
     stats_->total_requests.fetch_add(1, std::memory_order_relaxed);
     const auto path = path_only(request.target());
 

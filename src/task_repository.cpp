@@ -4,6 +4,7 @@
 #include <utility>
 
 Task TaskRepository::create(std::string title) {
+    // ID 分配和数据插入必须处于同一个临界区，避免并发产生重复 ID。
     std::scoped_lock lock(mutex_);
     Task task{next_id_++, std::move(title), false};
     tasks_.emplace(task.id, task);
@@ -18,6 +19,7 @@ std::vector<Task> TaskRepository::list() const {
         (void)id;
         result.push_back(task);
     }
+    // unordered_map 无序，排序后接口输出和测试结果更加稳定。
     std::ranges::sort(result, {}, &Task::id);
     return result;
 }

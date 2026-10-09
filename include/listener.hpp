@@ -9,6 +9,7 @@
 #include <cstddef>
 #include <memory>
 
+// Listener 只负责接受 TCP 连接，HTTP 请求交给 HttpSession 处理。
 class Listener : public std::enable_shared_from_this<Listener> {
 public:
     Listener(boost::asio::io_context& io_context,

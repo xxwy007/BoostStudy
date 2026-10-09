@@ -98,10 +98,16 @@ Invoke-RestMethod -Method Post http://127.0.0.1:8080/tasks `
 Invoke-RestMethod http://127.0.0.1:8080/tasks
 ```
 
-运行完整冒烟测试：
+运行完整冒烟测试（Git Bash 或 WSL）：
 
-```powershell
-.\tests\api_smoke.ps1
+```bash
+bash ./tests/api_smoke.sh
+```
+
+也可以指定服务地址：
+
+```bash
+bash ./tests/api_smoke.sh http://127.0.0.1:8080
 ```
 
 ## 代码结构

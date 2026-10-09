@@ -39,6 +39,7 @@ void Listener::run() {
 }
 
 void Listener::accept() {
+    // 每个新连接拥有独立 strand，同一个 Session 的回调不会并发执行。
     acceptor_.async_accept(
         net::make_strand(io_context_),
         [self = shared_from_this()](boost::system::error_code error,
@@ -49,6 +50,7 @@ void Listener::accept() {
 
 void Listener::on_accept(boost::system::error_code error, tcp::socket socket) {
     if (!error) {
+        // 后续异步回调会通过 shared_from_this() 延长 Session 生命周期。
         std::make_shared<HttpSession>(std::move(socket), router_, stats_, body_limit_)->run();
     }
     if (acceptor_.is_open()) {

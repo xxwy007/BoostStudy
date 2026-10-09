@@ -21,6 +21,7 @@ public:
     bool erase(std::uint64_t id);
 
 private:
+    // 多个 I/O 线程会共享仓库，容器和自增 ID 必须由同一把锁保护。
     mutable std::mutex mutex_;
     std::unordered_map<std::uint64_t, Task> tasks_;
     std::uint64_t next_id_{1};

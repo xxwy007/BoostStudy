@@ -107,7 +107,8 @@ if(WIN32)
 endif()
 
 if(MSVC)
-    target_compile_options(task_server PRIVATE /W4 /permissive- /EHsc)
+    # Source files contain Chinese comments; force a consistent UTF-8 source charset.
+    target_compile_options(task_server PRIVATE /W4 /permissive- /EHsc /utf-8)
 else()
     target_compile_options(task_server PRIVATE -Wall -Wextra -Wpedantic)
 endif()
