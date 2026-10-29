@@ -24,7 +24,8 @@ using tcp = net::ip::tcp;
 struct Config {
     std::string address{"127.0.0.1"};
     std::uint16_t port{8080};
-    unsigned int threads{std::max(1u, std::thread::hardware_concurrency())};
+    //unsigned int threads{std::max(1u, std::thread::hardware_concurrency())};
+    unsigned int threads{ 4 };
     std::size_t body_limit{64 * 1024};
 };
 

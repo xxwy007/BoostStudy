@@ -11,6 +11,8 @@
 #include <cstddef>
 #include <memory>
 #include <optional>
+#include <string>
+#include <string_view>
 
 // 一个 HttpSession 对应一个 TCP 连接，可连续处理多个 Keep-Alive 请求。
 // 异步回调通过 shared_from_this() 保证 Session 在操作完成前不会销毁。
@@ -25,6 +27,8 @@ public:
     void run();
 
 private:
+    void log_event(std::string_view event,
+                   std::string_view details = {}) const;
     void read_request();
     void on_read(boost::beast::error_code error, std::size_t bytes_transferred);
     void write_response(HttpResponse response);
@@ -40,7 +44,12 @@ private:
     std::optional<http::request_parser<http::string_body>> parser_;
     std::shared_ptr<Router> router_;
     std::shared_ptr<ServerStats> stats_;
+    std::uint64_t session_id_;
     std::size_t body_limit_;
     bool counted_{true};
+    std::chrono::steady_clock::time_point request_started_at_{};
+    std::string request_method_;
+    std::string request_target_;
+    unsigned int response_status_{0};
 };
 

@@ -12,13 +12,18 @@ Task TaskRepository::create(std::string title) {
 }
 
 std::vector<Task> TaskRepository::list() const {
-    std::scoped_lock lock(mutex_);
     std::vector<Task> result;
-    result.reserve(tasks_.size());
-    for (const auto& [id, task] : tasks_) {
-        (void)id;
-        result.push_back(task);
+
+    {
+        // 互斥锁只保护共享容器的读取；离开作用域后立即释放。
+        std::scoped_lock lock(mutex_);
+        result.reserve(tasks_.size());
+        for (const auto& [id, task] : tasks_) {
+            (void)id;
+            result.push_back(task);
+        }
     }
+
     // unordered_map 无序，排序后接口输出和测试结果更加稳定。
     std::ranges::sort(result, {}, &Task::id);
     return result;

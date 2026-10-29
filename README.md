@@ -84,6 +84,15 @@ cmake --build build --config Debug
 .\build\Debug\task_server.exe --help
 ```
 
+成功响应会输出一条访问日志，例如：
+
+```text
+[+1250ms] session=8 thread=14260 event=access method=GET target=/tasks status=200 duration_us=318 bytes_written=245
+```
+
+连接正常关闭、读取超时、请求体超限、操作取消、对端中途断开和其他网络错误
+会使用不同的事件名称，便于区分正常连接生命周期和真正的读写故障。
+
 ## 快速验证
 
 另开一个 PowerShell 窗口：
@@ -110,6 +119,38 @@ bash ./tests/api_smoke.sh
 bash ./tests/api_smoke.sh http://127.0.0.1:8080
 ```
 
+错误与边界测试使用 Git Bash 或 WSL 运行：
+
+```bash
+bash ./tests/api_error_cases.sh
+```
+
+如果服务使用了不同的地址或 `--body-limit`，需要传入相同参数：
+
+```bash
+bash ./tests/api_error_cases.sh http://127.0.0.1:9090 32768
+```
+
+该脚本覆盖非法 JSON、标题边界、错误字段类型、非法或不存在的任务 ID、
+错误 Content-Type、405、未知路由、请求体超限，以及客户端在请求过程中断开。
+
+自动比较 1、2、4 个 I/O 线程的并发行为：
+
+```bash
+bash ./tests/thread_scaling_benchmark.sh
+```
+
+脚本默认使用 `out/build/x64-Debug/task_server.exe`，每轮并发创建 100 个任务，
+并使用端口 `18080`。也可以依次指定可执行文件、请求数量和测试端口：
+
+```bash
+bash ./tests/thread_scaling_benchmark.sh \
+  ./out/build/x64-Debug/task_server.exe 200 18081
+```
+
+输出包括批次耗时、平均请求耗时、最大请求耗时和每秒请求数。该结果适合
+观察线程数量变化，不代表严格的生产环境性能基准。
+
 ## 代码结构
 
 ```text
@@ -124,7 +165,61 @@ src/session.cpp                 async_read / async_write 调用链
 src/listener.cpp                async_accept 调用链
 src/main.cpp                    参数解析、线程和服务启动
 tests/api_smoke.ps1             基础接口验证
+tests/api_error_cases.sh        错误响应和边界行为验证
+tests/concurrency_probe.sh      单次并发正确性和耗时验证
+tests/thread_scaling_benchmark.sh  自动比较 1、2、4 个 I/O 线程
 ```
+
+## 架构与并发边界
+
+```text
+Listener
+  ↓ 接受 TCP 连接
+HttpSession
+  ↓ 异步读取和发送 HTTP 消息
+Router
+  ↓ 校验方法、路径和 JSON
+TaskRepository
+  ↓ mutex 保护共享容器和任务 ID
+```
+
+- 多个线程共同调用同一个 `io_context.run()`。
+- 每个 Session 使用独立 strand，同一连接的回调不会同时执行，但可以先后由不同线程执行。
+- 不同 Session 可以并发执行。
+- `shared_from_this()` 保证异步操作完成前 Session 不会被销毁。
+- Repository 使用 mutex 保护复合数据操作，统计计数使用 atomic。
+- `TaskRepository::list()` 只在复制共享数据时持锁，局部排序在锁外执行。
+
+## 当前限制
+
+- 任务只保存在内存中，服务重启后数据丢失。
+- 路由使用代码中的条件分支，接口增多后应改为更明确的路由表或服务层。
+- 收到退出信号后直接停止 `io_context`，尚未等待所有 Session 完成，属于基础停机而非完整优雅停机。
+- 请求体超过限制时当前会关闭连接，没有生成结构化 `413` 响应。
+- Router 和 Repository 操作在 I/O 回调线程中同步执行，不适合直接加入阻塞数据库或耗时计算。
+- 没有 TLS、认证、分页、持久化和跨进程部署能力。
+- 本地并发脚本包含 `curl` 进程创建成本，结果只适合学习和趋势比较。
+
+## 学习要点
+
+- `io_context` 保存和分发异步完成回调，本身不自动创建工作线程。
+- `async_accept`、`async_read` 和 `async_write` 注册操作后立即返回。
+- 一个 Session 对应一条 TCP 连接；Keep-Alive 允许一个 Session 处理多个 HTTP 请求。
+- strand 提供串行执行保证，不提供固定线程亲和性。
+- 异步缓冲区和响应对象必须存活到完成回调执行结束。
+- mutex 适合保护容器与自增 ID 等复合状态，atomic 适合独立计数。
+- 增加线程不保证吞吐量线性提升，需要结合任务粒度、锁竞争和测试端开销分析。
+
+## 最终验证记录
+
+2026-10-29 使用独立 Debug 构建完成以下验证：
+
+- CMake 配置、Boost 1.92.0 查找和完整编译成功。
+- `api_smoke.sh` 通过。
+- `api_error_cases.sh` 的 17 个错误与边界用例通过。
+- 100 个并发创建请求全部成功，产生 100 个唯一 ID，且任务全部存在于仓库中。
+- 直接 HTTP 命令完成创建、查询、修改、列表、删除和删除后 404 验证。
+- 四个 I/O 线程均实际执行了回调，服务日志记录了 132 个 Session 和 130 条访问日志。
 
 ## 一周学习建议
 

@@ -102,7 +102,11 @@ target_link_libraries(task_server PRIVATE
 )
 
 if(WIN32)
-    target_compile_definitions(task_server PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
+    target_compile_definitions(task_server PRIVATE
+        WIN32_LEAN_AND_MEAN
+        NOMINMAX
+        _WIN32_WINNT=0x0A00
+    )
     target_link_libraries(task_server PRIVATE ws2_32 mswsock)
 endif()
 
